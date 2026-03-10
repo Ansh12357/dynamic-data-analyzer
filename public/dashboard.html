@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<title>Sales Dashboard</title>
+
+<!-- Bootstrap -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+</head>
+
+<body class="bg-light">
+
+<div class="container mt-5">
+
+<h1 class="text-center mb-4">Sales Dashboard</h1>
+
+<div class="row">
+
+<div class="col-md-6">
+<div class="card shadow p-3">
+<h5>Total Sales</h5>
+<h3 id="total"></h3>
+</div>
+</div>
+
+<div class="col-md-6">
+<div class="card shadow p-3">
+<h5>Top Sales Person</h5>
+<h3 id="top"></h3>
+</div>
+</div>
+
+</div>
+
+<br>
+
+<div class="card shadow p-3">
+
+<h5>City Sales Chart</h5>
+
+<canvas id="myChart"></canvas>
+
+</div>
+
+<br>
+
+<div class="card shadow p-3">
+
+<div class="d-flex justify-content-between">
+
+<h5>All Data</h5>
+
+<button class="btn btn-success" onclick="downloadReport()">
+Download Excel
+</button>
+
+</div>
+
+<br>
+
+<input class="form-control" type="text" id="search" placeholder="Search name or city..." onkeyup="searchTable()">
+
+<br>
+
+<table class="table table-bordered" id="table">
+
+<thead class="table-dark">
+
+<tr>
+<th>Name</th>
+<th>Email</th>
+<th>Sales</th>
+<th>City</th>
+<th>Action</th>
+</tr>
+
+</thead>
+
+<tbody>
+
+</tbody>
+
+</table>
+
+</div>
+
+</div>
+
+<script>
+
+// TOTAL SALES
+fetch("/total-sales")
+.then(res => res.json())
+.then(data => {
+
+document.getElementById("total").innerText = data.totalSales;
+
+});
+
+
+// TOP SALES
+fetch("/top-sales")
+.then(res => res.json())
+.then(data => {
+
+document.getElementById("top").innerText =
+data.name + " - " + data.sales;
+
+});
+
+
+// TABLE DATA
+fetch("/data")
+.then(res => res.json())
+.then(data => {
+
+let table = document.querySelector("#table tbody");
+
+data.forEach(item => {
+
+let row = table.insertRow();
+
+row.insertCell(0).innerText = item.name;
+row.insertCell(1).innerText = item.email;
+row.insertCell(2).innerText = item.sales;
+row.insertCell(3).innerText = item.city;
+
+let action = row.insertCell(4);
+
+action.innerHTML =
+`<button class="btn btn-danger btn-sm" onclick="deleteData('${item._id}')">Delete</button>`;
+
+});
+
+});
+
+
+// GRAPH
+fetch("/city-sales")
+.then(res => res.json())
+.then(data => {
+
+let cities = data.map(item => item._id);
+let sales = data.map(item => item.totalSales);
+
+new Chart(document.getElementById("myChart"), {
+
+type: "bar",
+
+data: {
+labels: cities,
+datasets: [{
+label: "City Sales",
+data: sales
+}]
+}
+
+});
+
+});
+
+
+// DELETE
+function deleteData(id){
+
+fetch("/delete/" + id,{
+method:"DELETE"
+})
+.then(res=>res.text())
+.then(msg=>{
+
+alert(msg);
+location.reload();
+
+});
+
+}
+
+
+// SEARCH
+function searchTable(){
+
+let input =
+document.getElementById("search")
+.value.toLowerCase();
+
+let rows =
+document.querySelectorAll("#table tbody tr");
+
+rows.forEach(row => {
+
+let name =
+row.cells[0].innerText.toLowerCase();
+
+let city =
+row.cells[3].innerText.toLowerCase();
+
+if(name.includes(input) || city.includes(input)){
+
+row.style.display="";
+
+}else{
+
+row.style.display="none";
+
+}
+
+});
+
+}
+
+
+// DOWNLOAD REPORT
+function downloadReport(){
+
+window.location.href="/download-report";
+
+}
+
+</script>
+
+</body>
+</html>
