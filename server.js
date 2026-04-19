@@ -21,9 +21,8 @@ const Data = require("./models/Data");
 
 // HOME
 app.get("/", (req, res) => {
-  res.send("Dynamic Data Analyzer Running 🚀");
+  res.sendFile(__dirname + "/public/index.html");
 });
-
 
 // ================= EXCEL UPLOAD =================
 app.post("/upload", upload.single("file"), async (req, res) => {
