@@ -3,12 +3,9 @@
 
 <head>
 
-<title>Sales Dashboard</title>
+<title>Dynamic Data Analyzer</title>
 
-<!-- Bootstrap -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-
-<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 </head>
@@ -17,167 +14,151 @@
 
 <div class="container mt-5">
 
-<h1 class="text-center mb-4">Sales Dashboard</h1>
+<h1 class="text-center mb-4">Dynamic Data Analyzer 🚀</h1>
 
-<div class="row">
+<!-- Upload -->
+<form id="uploadForm" class="mb-3">
+<input type="file" name="file" required>
+<button class="btn btn-primary">Upload</button>
+</form>
 
-<div class="col-md-6">
-<div class="card shadow p-3">
-<h5>Total Sales</h5>
-<h3 id="total"></h3>
-</div>
-</div>
+<!-- Graph Controls -->
+<div class="row mb-3">
 
-<div class="col-md-6">
-<div class="card shadow p-3">
-<h5>Top Sales Person</h5>
-<h3 id="top"></h3>
-</div>
+<div class="col">
+<select id="xField" class="form-control"></select>
 </div>
 
+<div class="col">
+<select id="yField" class="form-control"></select>
 </div>
 
-<br>
+<div class="col">
+<button class="btn btn-success" onclick="generateGraph()">Generate Graph</button>
+</div>
 
-<div class="card shadow p-3">
+</div>
 
-<h5>City Sales Chart</h5>
-
+<!-- Chart -->
 <canvas id="myChart"></canvas>
 
-</div>
-
 <br>
 
-<div class="card shadow p-3">
+<!-- Search -->
+<input class="form-control mb-2" id="search" placeholder="Search..." onkeyup="searchTable()">
 
-<div class="d-flex justify-content-between">
-
-<h5>All Data</h5>
-
-<button class="btn btn-success" onclick="downloadReport()">
-Download Excel
-</button>
-
-</div>
-
-<br>
-
-<input class="form-control" type="text" id="search" placeholder="Search name or city..." onkeyup="searchTable()">
-
-<br>
-
+<!-- Table -->
 <table class="table table-bordered" id="table">
-
-<thead class="table-dark">
-
-<tr>
-<th>Name</th>
-<th>Email</th>
-<th>Sales</th>
-<th>City</th>
-<th>Action</th>
-</tr>
-
+<thead>
+<tr></tr>
 </thead>
-
-<tbody>
-
-</tbody>
-
+<tbody></tbody>
 </table>
 
-</div>
+<button class="btn btn-success" onclick="downloadReport()">Download Excel</button>
 
 </div>
 
 <script>
 
-// TOTAL SALES
-fetch("/total-sales")
-.then(res => res.json())
-.then(data => {
+// UPLOAD
+document.getElementById("uploadForm").addEventListener("submit", async (e)=>{
+  e.preventDefault();
 
-document.getElementById("total").innerText = data.totalSales;
+  let formData = new FormData(e.target);
 
+  await fetch("/upload", {
+    method:"POST",
+    body:formData
+  });
+
+  alert("Uploaded ✅");
+
+  loadData();
+  loadFields();
 });
 
 
-// TOP SALES
-fetch("/top-sales")
-.then(res => res.json())
-.then(data => {
+// LOAD DATA
+async function loadData(){
 
-document.getElementById("top").innerText =
-data.name + " - " + data.sales;
+  let res = await fetch("/data");
+  let data = await res.json();
 
-});
+  let table = document.querySelector("#table tbody");
+  let thead = document.querySelector("#table thead tr");
+
+  thead.innerHTML="";
+  table.innerHTML="";
+
+  if(!data.length) return;
+
+  let keys = Object.keys(data[0]);
+
+  keys.forEach(k=>{
+    thead.innerHTML += `<th>${k}</th>`;
+  });
+
+  data.forEach(item => {
+
+    let row = table.insertRow();
+
+    keys.forEach(k=>{
+      row.insertCell().innerText = item[k];
+    });
+
+  });
+}
 
 
-// TABLE DATA
-fetch("/data")
-.then(res => res.json())
-.then(data => {
+// LOAD FIELDS
+async function loadFields(){
 
-let table = document.querySelector("#table tbody");
+  let res = await fetch("/analyze");
+  let data = await res.json();
 
-data.forEach(item => {
+  let x = document.getElementById("xField");
+  let y = document.getElementById("yField");
 
-let row = table.insertRow();
+  x.innerHTML="";
+  y.innerHTML="";
 
-row.insertCell(0).innerText = item.name;
-row.insertCell(1).innerText = item.email;
-row.insertCell(2).innerText = item.sales;
-row.insertCell(3).innerText = item.city;
+  data.categorical.forEach(f=>{
+    x.innerHTML += `<option>${f}</option>`;
+  });
 
-let action = row.insertCell(4);
+  data.numeric.forEach(f=>{
+    y.innerHTML += `<option>${f}</option>`;
+  });
 
-action.innerHTML =
-`<button class="btn btn-danger btn-sm" onclick="deleteData('${item._id}')">Delete</button>`;
-
-});
-
-});
+}
 
 
 // GRAPH
-fetch("/city-sales")
-.then(res => res.json())
-.then(data => {
+function generateGraph(){
 
-let cities = data.map(item => item._id);
-let sales = data.map(item => item.totalSales);
+  let xField = document.getElementById("xField").value;
+  let yField = document.getElementById("yField").value;
 
-new Chart(document.getElementById("myChart"), {
+  fetch(`/dynamic-graph?xField=${xField}&yField=${yField}`)
+  .then(res => res.json())
+  .then(data => {
 
-type: "bar",
+    let labels = data.map(i => i._id);
+    let values = data.map(i => i.total);
 
-data: {
-labels: cities,
-datasets: [{
-label: "City Sales",
-data: sales
-}]
-}
+    new Chart(document.getElementById("myChart"), {
+      type: "bar",
+      data: {
+        labels: labels,
+        datasets: [{
+          label: "Analysis",
+          data: values
+        }]
+      }
+    });
 
-});
-
-});
-
-
-// DELETE
-function deleteData(id){
-
-fetch("/delete/" + id,{
-method:"DELETE"
-})
-.then(res=>res.text())
-.then(msg=>{
-
-alert(msg);
-location.reload();
-
-});
+  });
 
 }
 
@@ -185,44 +166,35 @@ location.reload();
 // SEARCH
 function searchTable(){
 
-let input =
-document.getElementById("search")
-.value.toLowerCase();
+  let input = document.getElementById("search").value.toLowerCase();
 
-let rows =
-document.querySelectorAll("#table tbody tr");
+  let rows = document.querySelectorAll("#table tbody tr");
 
-rows.forEach(row => {
+  rows.forEach(row => {
 
-let name =
-row.cells[0].innerText.toLowerCase();
+    if(row.innerText.toLowerCase().includes(input)){
+      row.style.display="";
+    } else {
+      row.style.display="none";
+    }
 
-let city =
-row.cells[3].innerText.toLowerCase();
-
-if(name.includes(input) || city.includes(input)){
-
-row.style.display="";
-
-}else{
-
-row.style.display="none";
-
-}
-
-});
+  });
 
 }
 
 
-// DOWNLOAD REPORT
+// DOWNLOAD
 function downloadReport(){
-
-window.location.href="/download-report";
-
+  window.location.href="/download-report";
 }
+
+
+// INIT
+loadData();
+loadFields();
 
 </script>
 
 </body>
+
 </html>

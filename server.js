@@ -16,78 +16,16 @@ app.use(express.static("public"));
 // Multer setup
 const upload = multer({ dest: "uploads/" });
 
-// Import Model
+// Model
 const Data = require("./models/Data");
 
-
-// HOME ROUTE
+// HOME
 app.get("/", (req, res) => {
-  res.send("Server + MongoDB Running 🚀");
+  res.send("Dynamic Data Analyzer Running 🚀");
 });
 
 
-// UPLOAD PAGE
-app.get("/upload", (req, res) => {
-  res.send(`
-    <h2>Upload Excel File</h2>
-    <form action="/upload" method="POST" enctype="multipart/form-data">
-      <input type="file" name="file" required/>
-      <button type="submit">Upload</button>
-    </form>
-  `);
-});
-
-
-// ADD DATA
-app.post("/add", async (req, res) => {
-  try {
-
-    const newData = new Data(req.body);
-    await newData.save();
-
-    res.send("Data Saved ✅");
-
-  } catch (error) {
-    res.status(500).send(error.message);
-  }
-});
-
-
-// GET ALL DATA
-app.get("/data", async (req, res) => {
-  try {
-
-    const data = await Data.find();
-    res.json(data);
-
-  } catch (error) {
-    res.status(500).send(error.message);
-  }
-});
-
-
-// TEST DATA
-app.get("/test-add", async (req, res) => {
-  try {
-
-    const newData = new Data({
-      name: "Ansh",
-      email: "ansh@gmail.com",
-      sales: 7000,
-      city: "Gurgaon"
-    });
-
-    await newData.save();
-
-    res.send("Test Data Saved ✅");
-
-  } catch (error) {
-    res.status(500).send(error.message);
-  }
-});
-
-
-// EXCEL UPLOAD
+// ================= EXCEL UPLOAD =================
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
 
@@ -101,9 +39,12 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     const sheetData =
       XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
 
+    // old data clear (optional)
+    await Data.deleteMany();
+
     await Data.insertMany(sheetData);
 
-    res.send("Excel Data Uploaded & Saved ✅");
+    res.send("Excel Uploaded & Data Saved ✅");
 
   } catch (error) {
     res.status(500).send(error.message);
@@ -111,17 +52,39 @@ app.post("/upload", upload.single("file"), async (req, res) => {
 });
 
 
-// TOTAL SALES
-app.get("/total-sales", async (req, res) => {
+// ================= GET DATA =================
+app.get("/data", async (req, res) => {
   try {
-
     const data = await Data.find();
+    res.json(data);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+});
 
-    const total = data.reduce((sum, item) => {
-      return sum + item.sales;
-    }, 0);
 
-    res.json({ totalSales: total });
+// ================= ANALYZE FIELDS =================
+app.get("/analyze", async (req, res) => {
+  try {
+
+    const data = await Data.find().lean();
+
+    if (!data.length) return res.json({ numeric: [], categorical: [] });
+
+    const sample = data[0];
+
+    let numeric = [];
+    let categorical = [];
+
+    for (let key in sample) {
+      if (typeof sample[key] === "number") {
+        numeric.push(key);
+      } else {
+        categorical.push(key);
+      }
+    }
+
+    res.json({ numeric, categorical });
 
   } catch (error) {
     res.status(500).send(error.message);
@@ -129,29 +92,17 @@ app.get("/total-sales", async (req, res) => {
 });
 
 
-// TOP SALES PERSON
-app.get("/top-sales", async (req, res) => {
+// ================= DYNAMIC GRAPH =================
+app.get("/dynamic-graph", async (req, res) => {
   try {
 
-    const top = await Data.findOne().sort({ sales: -1 });
-
-    res.json(top);
-
-  } catch (error) {
-    res.status(500).send(error.message);
-  }
-});
-
-
-// CITY SALES GRAPH
-app.get("/city-sales", async (req, res) => {
-  try {
+    const { xField, yField } = req.query;
 
     const result = await Data.aggregate([
       {
         $group: {
-          _id: "$city",
-          totalSales: { $sum: "$sales" }
+          _id: `$${xField}`,
+          total: { $sum: `$${yField}` }
         }
       }
     ]);
@@ -164,31 +115,12 @@ app.get("/city-sales", async (req, res) => {
 });
 
 
-// DELETE DATA
+// ================= DELETE =================
 app.delete("/delete/:id", async (req, res) => {
   try {
 
     await Data.findByIdAndDelete(req.params.id);
-
-    res.send("Data Deleted Successfully ✅");
-
-  } catch (error) {
-    res.status(500).send(error.message);
-  }
-});
-
-
-// UPDATE DATA
-app.put("/update/:id", async (req, res) => {
-  try {
-
-    const updated = await Data.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
-    );
-
-    res.json(updated);
+    res.send("Deleted ✅");
 
   } catch (error) {
     res.status(500).send(error.message);
@@ -196,33 +128,18 @@ app.put("/update/:id", async (req, res) => {
 });
 
 
-// DOWNLOAD EXCEL REPORT
+// ================= DOWNLOAD EXCEL =================
 app.get("/download-report", async (req, res) => {
   try {
 
     const data = await Data.find().lean();
 
-    const cleanData = data.map(item => ({
-      name: item.name,
-      email: item.email,
-      sales: item.sales,
-      city: item.city
-    }));
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
 
-    const worksheet =
-      XLSX.utils.json_to_sheet(cleanData);
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Report");
 
-    const workbook =
-      XLSX.utils.book_new();
-
-    XLSX.utils.book_append_sheet(
-      workbook,
-      worksheet,
-      "Sales Report"
-    );
-
-    const filePath = "sales-report.xlsx";
-
+    const filePath = "report.xlsx";
     XLSX.writeFile(workbook, filePath);
 
     res.download(filePath);
@@ -233,23 +150,13 @@ app.get("/download-report", async (req, res) => {
 });
 
 
-// MONGODB CONNECTION
+// ================= MONGODB =================
 mongoose.connect(process.env.MONGO_URI)
-.then(() => {
-
-  console.log("MongoDB Connected ✅");
-
-})
-.catch((err) => {
-
-  console.log("Mongo Error:", err.message);
-
-});
+.then(() => console.log("MongoDB Connected ✅"))
+.catch(err => console.log(err.message));
 
 
-// SERVER START
+// ================= SERVER =================
 app.listen(5000, () => {
-
-  console.log("Server running on http://localhost:5000 🚀");
-
+  console.log("Server running: http://localhost:5000 🚀");
 });

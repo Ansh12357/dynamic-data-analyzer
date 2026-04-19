@@ -1,10 +1,6 @@
 const mongoose = require("mongoose");
 
-const DataSchema = new mongoose.Schema({
-  name: String,
-  email: String,
-  sales: Number,
-  city: String
-});
+// Dynamic schema (koi v dataset chalega)
+const dataSchema = new mongoose.Schema({}, { strict: false });
 
-module.exports = mongoose.model("Data", DataSchema);
+module.exports = mongoose.model("Data", dataSchema);
